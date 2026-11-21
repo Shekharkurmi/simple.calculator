@@ -1,0 +1,193 @@
+
+#include <SDL2/SDL.h>
+#include <stdio.h>
+#include <math.h>
+#include <stdbool.h>
+
+#define WIDTH 900
+#define HEIGHT 600
+#define PI 3.14159
+
+float carX = 150;
+float carY = 300;
+float velocity = 0;
+float verticalVelocity = 0;
+float fuel = 100;
+float distance = 0;
+int coins = 0;
+bool gameOver = false;
+
+float ground(float x) {
+    return 430 + 55 * sinf(x * 0.008f)
+               + 25 * sinf(x * 0.018f);
+}
+
+int main(int argc, char *argv[]) {
+
+    SDL_Init(SDL_INIT_VIDEO);
+
+    SDL_Window *window = SDL_CreateWindow(
+        "Hill Climb Adventure",
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        WIDTH, HEIGHT,
+        SDL_WINDOW_SHOWN
+    );
+
+    SDL_Renderer *renderer =
+        SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+
+    bool running = true;
+    SDL_Event event;
+
+    Uint32 lastTime = SDL_GetTicks();
+
+    while (running) {
+
+        Uint32 currentTime = SDL_GetTicks();
+        float dt = (currentTime - lastTime) / 1000.0f;
+        lastTime = currentTime;
+
+        if (dt > 0.05f) dt = 0.05f;
+
+        while (SDL_PollEvent(&event)) {
+            if (event.type == SDL_QUIT)
+                running = false;
+        }
+
+        const Uint8 *keys = SDL_GetKeyboardState(NULL);
+
+        if (keys[SDL_SCANCODE_ESCAPE])
+            running = false;
+
+        if (!gameOver) {
+
+            if (keys[SDL_SCANCODE_RIGHT])
+                velocity += 180 * dt;
+
+            if (keys[SDL_SCANCODE_LEFT])
+                velocity -= 120 * dt;
+
+            velocity *= 0.99f;
+
+            if (velocity > 300) velocity = 300;
+            if (velocity < -100) velocity = -100;
+
+            if (keys[SDL_SCANCODE_SPACE] &&
+                carY + 35 >= ground(carX)) {
+                verticalVelocity = -300;
+            }
+
+            verticalVelocity += 600 * dt;
+            carX += velocity * dt;
+            carY += verticalVelocity * dt;
+
+            float terrain = ground(carX);
+
+            if (carY + 35 >= terrain) {
+                carY = terrain - 35;
+                verticalVelocity = 0;
+            }
+
+            if (velocity > 0) {
+                distance += velocity * dt / 10;
+                fuel -= velocity * dt * 0.008f;
+            }
+
+            if (fuel <= 0 || carY > HEIGHT) {
+                gameOver = true;
+            }
+        }
+
+        // Sky
+        SDL_SetRenderDrawColor(renderer, 100, 190, 255, 255);
+        SDL_RenderClear(renderer);
+
+        // Hills
+        SDL_SetRenderDrawColor(renderer, 65, 180, 75, 255);
+
+        for (int x = 0; x < WIDTH; x += 2) {
+            int worldX = (int)(carX - 150 + x);
+            int y = (int)ground(worldX);
+
+            SDL_RenderDrawLine(
+                renderer, x, y, x, HEIGHT
+            );
+        }
+
+        // Car body
+        SDL_Rect body = {
+            WIDTH / 2 - 40,
+            (int)carY - 35,
+            80, 30
+        };
+
+        SDL_SetRenderDrawColor(renderer, 220, 40, 40, 255);
+        SDL_RenderFillRect(renderer, &body);
+
+        // Car roof
+        SDL_Rect roof = {
+            WIDTH / 2 - 20,
+            (int)carY - 55,
+            40, 20
+        };
+
+        SDL_SetRenderDrawColor(renderer, 30, 50, 180, 255);
+        SDL_RenderFillRect(renderer, &roof);
+
+        // Wheels
+        SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
+
+        SDL_Rect wheel1 = {
+            WIDTH / 2 - 30,
+            (int)carY - 12,
+            22, 22
+        };
+
+        SDL_Rect wheel2 = {
+            WIDTH / 2 + 10,
+            (int)carY - 12,
+            22, 22
+        };
+
+        SDL_RenderFillRect(renderer, &wheel1);
+        SDL_RenderFillRect(renderer, &wheel2);
+
+        // Fuel bar background
+        SDL_Rect fuelBG = {20, 20, 204, 24};
+        SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255);
+        SDL_RenderFillRect(renderer, &fuelBG);
+
+        // Fuel bar
+        SDL_Rect fuelBar = {
+            22, 22, (int)(200 * (fuel / 100)), 20
+        };
+
+        SDL_SetRenderDrawColor(renderer, 255, 180, 0, 255);
+        SDL_RenderFillRect(renderer, &fuelBar);
+
+        // Display score and distance in window title
+        char title[150];
+        snprintf(title, sizeof(title),
+                 "Hill Climb | Distance: %.1f | Fuel: %.0f%%",
+                 distance, fuel);
+
+        SDL_SetWindowTitle(window, title);
+
+        if (gameOver) {
+            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
+            SDL_Rect overlay = {200, 200, 500, 150};
+            SDL_RenderFillRect(renderer, &overlay);
+            SDL_SetWindowTitle(window, "GAME OVER - Close to exit");
+        }
+
+        SDL_RenderPresent(renderer);
+        SDL_Delay(16);
+    }
+
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+
+    return 0;
+}
